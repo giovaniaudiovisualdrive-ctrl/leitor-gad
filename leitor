@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="pt-BR"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0e141b">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Leitor GAD</title>
+<style>
+:root{--bg:#0e141b;--panel:#16202b;--panel2:#1d2935;--ink:#eef2f6;--muted:#93a2b3;--line:#2a3746;--acc:#6b9cff;--ok:#3fcf80;--warn:#f0aa36;--bad:#ff6d60;color-scheme:dark}
+*{box-sizing:border-box}html,body{margin:0;height:100%}[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:env(safe-area-inset-top) max(12px,env(safe-area-inset-right)) env(safe-area-inset-bottom) max(12px,env(safe-area-inset-left))}
+header{display:flex;justify-content:space-between;align-items:center;padding:10px 2px}
+header b{font-size:18px}.st{font-size:12px;color:var(--muted);display:flex;gap:6px;align-items:center}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--muted);display:inline-block}.dot.ok{background:var(--ok)}.dot.bad{background:var(--bad)}.dot.warn{background:var(--warn)}
+.seg{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;background:var(--panel);padding:4px;border-radius:12px}
+.seg button{border:0;background:transparent;color:var(--muted);padding:10px 2px;border-radius:9px;font-weight:700;font-size:13px}
+.seg button.on{background:var(--acc);color:#0b1424}
+select,input{width:100%;font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:11px 12px}
+.row{display:flex;gap:8px;align-items:center}.col{display:flex;flex-direction:column;gap:10px}
+.btn{border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:12px;padding:14px;font-weight:700;font-size:15px;text-align:center;flex:1}
+.btn.pri{background:var(--acc);color:#0b1424;border-color:var(--acc)}
+.cam{position:relative;border-radius:14px;overflow:hidden;background:#000;aspect-ratio:4/3}
+.cam video{width:100%;height:100%;object-fit:cover;display:block}
+.cam .mira{position:absolute;inset:22% 10%;border:3px solid rgba(255,255,255,.85);border-radius:12px;box-shadow:0 0 0 999px rgba(0,0,0,.28)}
+.cam .linha{position:absolute;left:12%;right:12%;top:50%;height:2px;background:var(--bad);animation:l 1.6s ease-in-out infinite alternate}
+@keyframes l{from{top:28%}to{top:72%}}
+.cam .off{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);text-align:center;padding:20px}
+.res{border-radius:12px;padding:12px 14px;background:var(--panel);border-left:6px solid var(--muted)}
+.res.ok{border-color:var(--ok)}.res.warn{border-color:var(--warn)}.res.bad{border-color:var(--bad)}
+.res b{display:block;font-size:17px}
+.lst{display:flex;flex-direction:column;gap:6px;font-size:13px}
+.lst div{background:var(--panel);border-radius:8px;padding:8px 10px;display:flex;justify-content:space-between;gap:8px}
+.muted{color:var(--muted)}.small{font-size:12.5px}
+.flash{position:fixed;inset:0;pointer-events:none;opacity:0;transition:opacity .25s}
+.flash.ok{background:rgba(63,207,128,.35);opacity:1}.flash.bad{background:rgba(255,109,96,.4);opacity:1}
+h2{font-size:16px;margin:4px 0}
+@media (prefers-reduced-motion:reduce){.cam .linha{animation:none}}
+</style></head><body>
+<header><b>Leitor GAD</b><span class="st"><i class="dot" id="dot"></i><span id="sttx">…</span></span></header>
+<div id="flash" class="flash"></div>
+
+<section id="parear" class="col" hidden>
+ <h2>Parear com a Central</h2>
+ <p class="muted small">Na Central: Configurações → App Leitor GAD. Toque em “Ler QR de pareamento” e aponte para o QR da tela.</p>
+ <button class="btn pri" id="bpq">Ler QR de pareamento</button>
+ <details><summary class="small muted">Digitar manualmente</summary><div class="col" style="margin-top:8px"><input id="pu" placeholder="Link do app (https://script.google.com/…/exec)"><input id="pt" placeholder="Código de segurança"><button class="btn" id="bps">Salvar</button></div></details>
+</section>
+
+<section id="app" class="col" hidden>
+ <div class="seg" id="modos"></div>
+ <div id="ctxbox" class="col"></div>
+ <div class="row"><input id="op" placeholder="Seu nome (operador)"><input id="qtd" type="number" min="1" value="1" style="max-width:86px" title="Quantidade por leitura (itens sem nº de série)"></div>
+ <div class="cam" id="cam"><video id="v" playsinline muted></video><div class="mira" id="mira" hidden></div><div class="linha" id="lin" hidden></div><div class="off" id="camoff"><span>Toque em <b>Ligar câmera</b> para ler ao vivo</span></div></div>
+ <div class="row"><button class="btn pri" id="bcam">Ligar câmera</button><button class="btn" id="btor" hidden>Lanterna</button></div>
+ <div class="row"><label class="btn">Foto + leitura<input type="file" id="ff" accept="image/*" capture="environment" hidden></label><button class="btn" id="bman">Digitar</button></div>
+ <div id="res" class="res"><span class="muted">Aponte para o código de barras, QR Code ou etiqueta.</span></div>
+ <div id="prog"></div>
+ <h2>Leituras <span class="muted small" id="fila"></span></h2><div class="lst" id="lst"></div>
+ <div class="row" style="margin:14px 0 24px"><button class="btn" id="bctx">Atualizar lista</button><button class="btn" id="bdes">Desparear</button></div>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
+<script>
+"use strict";
+const $=s=>document.querySelector(s);const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const LS='leitorgad';const ld=(k,d)=>{try{const v=localStorage.getItem(LS+k);return v?JSON.parse(v):d}catch(e){return d}};const sv=(k,v)=>{try{localStorage.setItem(LS+k,JSON.stringify(v))}catch(e){}};
+const CFG=ld('cfg',{url:'',t:''});const GS=typeof google!=='undefined'&&google.script&&google.script.run;
+let CTX=ld('ctx',{eventos:[],invs:[],produtos:[],unidades:[]});let ST=ld('st',{modo:'sep',ctx:'',op:'',lidos:{}});let FILA=ld('fila',[]);let HIST=ld('hist',[]);
+const apar=ld('apar',null)||(()=>{const a='CEL-'+Math.random().toString(36).slice(2,7).toUpperCase();sv('apar',a);return a})();
+const norm=s=>String(s==null?'':s).normalize('NFD').replace(/\p{M}/gu,'').toLowerCase().trim();
+const MODOS=[['consulta','Consultar'],['sep','Saída'],['ret','Retorno'],['inv','Contagem']];
+/* ---------- comunicação com o Apps Script ---------- */
+function chamar(req){req=Object.assign({t:CFG.t},req);
+  if(GS)return new Promise((ok,er)=>google.script.run.withSuccessHandler(ok).withFailureHandler(er).api(req));
+  if(!CFG.url)return Promise.reject(new Error('sem link'));
+  if(req.acao==='contexto')return fetch(CFG.url+(CFG.url.includes('?')?'&':'?')+'acao=contexto&t='+encodeURIComponent(CFG.t)).then(r=>r.json());
+  return fetch(CFG.url,{method:'POST',body:JSON.stringify(req)}).then(r=>r.json())}
+function status(cls,t){$('#dot').className='dot '+cls;$('#sttx').textContent=t}
+async function baixarContexto(aviso){try{const c=await chamar({acao:'contexto'});if(c.erro){status('bad',c.erro==='chave'?'Código de segurança inválido':'Erro');return}CTX=c;sv('ctx',c);indexar();desenhar();if(aviso)toast('Lista atualizada: '+c.eventos.length+' eventos, '+c.produtos.length+' itens');status('ok','Conectado')}catch(e){status('warn','Sem conexão · usando lista salva')}}
+let IDX={};function indexar(){IDX={};const s=x=>String(x||'').replace(/^'/,'');CTX.produtos.forEach(p=>{const o={pid:p[0],codigo:s(p[1]),nome:p[2]};[o.codigo,s(p[3])].filter(Boolean).forEach(k=>IDX[norm(k)]=o)});CTX.unidades.forEach(u=>{const pr=CTX.produtos.find(p=>p[0]===u[3]);const o={pid:u[3],uid:u[0],serie:s(u[2]),codigo:s(u[1]),nome:pr?pr[2]:'?'};[s(u[1]),s(u[2])].filter(Boolean).forEach(k=>IDX[norm(k)]=o)})}
+async function enviarFila(){if(!FILA.length){atualizarFila();return}if(!navigator.onLine){atualizarFila();return}const lote=FILA.slice(0,40);
+  try{const r=await chamar({acao:'registrar',leituras:lote});if(r.erro){status('bad',r.erro==='chave'?'Código de segurança inválido':'Erro no servidor');return}
+    (r.res||[]).forEach(x=>{if(x.st==='duplicado'){const h=HIST.find(h=>h.id===x.id);if(h){h.dup=1;desfazerLocal(h)}aviso('bad','Já lido em outro aparelho',h?h.nome:'')}});
+    const ok=new Set((r.res||[]).map(x=>x.id));FILA=FILA.filter(l=>!ok.has(l.id));sv('fila',FILA.map(l=>l.foto?Object.assign({},l,{foto:''}):l));sv('hist',HIST.slice(0,80));status('ok','Conectado');desenhar()}
+  catch(e){status('warn','Sem conexão · '+FILA.length+' na fila')}atualizarFila()}
+function atualizarFila(){$('#fila').textContent=FILA.length?FILA.length+' aguardando envio':'tudo enviado'}
+setInterval(enviarFila,4000);window.addEventListener('online',enviarFila);
+/* ---------- telas ---------- */
+function desenhar(){
+  $('#parear').hidden=!!(CFG.t&&(CFG.url||GS));$('#app').hidden=!$('#parear').hidden;
+  $('#modos').innerHTML=MODOS.map(([k,l])=>`<button data-m="${k}" class="${ST.modo===k?'on':''}">${l}</button>`).join('');
+  document.querySelectorAll('#modos button').forEach(b=>b.onclick=()=>{ST.modo=b.dataset.m;ST.ctx='';sv('st',ST);desenhar()});
+  let h='';if(ST.modo==='sep'||ST.modo==='ret')h=`<select id="ctx"><option value="">— escolha o evento —</option>${CTX.eventos.map(e=>`<option value="${esc(e.id)}" ${e.id===ST.ctx?'selected':''}>${esc(String(e.numero||'').replace(/^'/,''))} ${esc(e.nome)}</option>`).join('')}</select>`;
+  if(ST.modo==='inv')h=`<select id="ctx"><option value="">— escolha a contagem —</option>${CTX.invs.map(e=>`<option value="${esc(e.id)}" ${e.id===ST.ctx?'selected':''}>${esc(e.nome)}</option>`).join('')}</select>`;
+  $('#ctxbox').innerHTML=h;if($('#ctx'))$('#ctx').onchange=e=>{ST.ctx=e.target.value;sv('st',ST);desenhar()};
+  $('#op').value=ST.op||'';
+  const ev=CTX.eventos.find(e=>e.id===ST.ctx);
+  if(ev&&(ST.modo==='sep'||ST.modo==='ret')){const lid=ST.lidos[ST.modo+'|'+ev.id]||{};const its=ev.itens||[];
+    $('#prog').innerHTML=`<div class="lst">${its.map(([pid,desc,q])=>{const p=CTX.produtos.find(x=>x[0]===pid);const n=(lid[pid]&&lid[pid].n)||0;return `<div style="${n>=q?'background:rgba(63,207,128,.18)':''}"><span>${esc(p?p[2]:desc)}</span><b>${n}/${q}</b></div>`}).join('')}</div>`}else $('#prog').innerHTML='';
+  $('#lst').innerHTML=HIST.slice(0,20).map(h=>`<div style="${h.dup?'opacity:.5;text-decoration:line-through':''}"><span>${esc(h.hora)} · ${esc(h.nome||h.codigo)}${h.serie?' · S/N '+esc(h.serie):''}</span><span class="muted">${esc(h.modoTx)}</span></div>`).join('');
+  atualizarFila();
+}
+function toast(t){aviso('ok',t,'')}
+function aviso(cls,tit,sub){$('#res').className='res '+cls;$('#res').innerHTML=`<b>${esc(tit)}</b>${sub?`<span class="small">${esc(sub)}</span>`:''}`;const f=$('#flash');f.className='flash '+(cls==='ok'?'ok':'bad');setTimeout(()=>f.className='flash',220);
+  try{navigator.vibrate&&navigator.vibrate(cls==='ok'?60:[100,60,100])}catch(e){}bip(cls==='ok')}
+let AC=null;function bip(ok){try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();const o=AC.createOscillator(),g=AC.createGain();o.frequency.value=ok?1250:330;g.gain.value=.12;o.connect(g);g.connect(AC.destination);o.start();o.stop(AC.currentTime+(ok?.09:.28))}catch(e){}}
+/* ---------- leitura ---------- */
+let ultimo='',ultimoT=0;
+function ler(code,foto){code=String(code||'').trim();if(!code)return;const agora=Date.now();if(!foto&&code===ultimo&&agora-ultimoT<2500)return;ultimo=code;ultimoT=agora;
+  const mp=code.match(/[?&]parear=([^&#\s]+)/);if(mp){parearCom(decodeURIComponent(mp[1]),GS?'':code.split('?')[0]);pararCam();return}
+  if(!CFG.t){try{const j=JSON.parse(code);if(j.u&&j.t){CFG.url=j.u;CFG.t=j.t;sv('cfg',CFG);pararCam();aviso('ok','Pareado com a Central','');baixarContexto(true);desenhar();return}}catch(e){}aviso('bad','Este não é o QR de pareamento','');return}
+  try{const j=JSON.parse(code);if(j.u&&j.t){CFG.url=j.u;CFG.t=j.t;sv('cfg',CFG);aviso('ok','Pareamento atualizado','');baixarContexto(true);return}}catch(e){}
+  const it=IDX[norm(code)];const modo=ST.modo;
+  if(modo==='consulta'){if(it)aviso('ok',it.nome,(it.serie?'S/N '+it.serie+' · ':'')+'código '+it.codigo);else aviso('bad','Código não cadastrado',code);if(!foto)return}
+  if((modo==='sep'||modo==='ret'||modo==='inv')&&!ST.ctx){aviso('warn',modo==='inv'?'Escolha a contagem':'Escolha o evento','');return}
+  const qtd=it&&it.uid?1:Math.max(1,parseInt($('#qtd').value)||1);
+  if(modo==='sep'||modo==='ret'){const ev=CTX.eventos.find(e=>e.id===ST.ctx);if(!it){aviso('bad','Código não cadastrado',code);return}const item=(ev.itens||[]).find(x=>x[0]===it.pid);if(!item){aviso('warn','Fora da lista do evento',it.nome);}}
+  const k=modo+'|'+ST.ctx;ST.lidos[k]=ST.lidos[k]||{};const reg=ST.lidos[k][it?it.pid:code]=ST.lidos[k][it?it.pid:code]||{n:0,u:[]};
+  if(it&&it.uid&&reg.u.includes(it.uid)&&modo!=='consulta'){aviso('warn','Já lido neste aparelho',it.nome+' · S/N '+it.serie);return}
+  if(it&&it.uid)reg.u.push(it.uid);reg.n+=qtd;sv('st',ST);
+  const id=apar+'-'+agora.toString(36)+'-'+Math.random().toString(36).slice(2,6);const op=$('#op').value.trim();ST.op=op;
+  const l={id,ts:agora,codigo:code,modo,ctx:ST.ctx,qtd,uid:it&&it.uid||'',operador:op,aparelho:apar,foto:foto||''};FILA.push(l);
+  HIST.unshift({id,hora:new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'}),codigo:code,nome:it?it.nome:code,serie:it&&it.serie,modoTx:MODOS.find(m=>m[0]===modo)[1],k,pid:it?it.pid:code,uid:it&&it.uid,qtd});
+  sv('fila',FILA.map(x=>x.foto?Object.assign({},x,{foto:''}):x));sv('hist',HIST.slice(0,80));
+  if(modo!=='consulta'){const ev=CTX.eventos.find(e=>e.id===ST.ctx);const item=ev&&(ev.itens||[]).find(x=>x[0]===(it&&it.pid));aviso(it?'ok':'warn',it?it.nome:'Código sem cadastro (registrado)',item?`${reg.n} de ${item[2]}`:(it&&it.serie?'S/N '+it.serie:code))}
+  desenhar();enviarFila();
+}
+function desfazerLocal(h){const r=ST.lidos[h.k]&&ST.lidos[h.k][h.pid];if(r){r.n=Math.max(0,r.n-(h.qtd||1));if(h.uid)r.u=r.u.filter(x=>x!==h.uid)}sv('st',ST)}
+/* ---------- câmera ao vivo ---------- */
+let STREAM=null,TRACK=null,TOR=false,LOOP=null;const BD='BarcodeDetector' in window?new BarcodeDetector():null;
+const hints=new Map();try{hints.set(ZXing.DecodeHintType.TRY_HARDER,true);hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS,[ZXing.BarcodeFormat.QR_CODE,ZXing.BarcodeFormat.CODE_128,ZXing.BarcodeFormat.CODE_39,ZXing.BarcodeFormat.EAN_13,ZXing.BarcodeFormat.EAN_8,ZXing.BarcodeFormat.UPC_A,ZXing.BarcodeFormat.ITF,ZXing.BarcodeFormat.DATA_MATRIX,ZXing.BarcodeFormat.CODABAR])}catch(e){}
+const RD=window.ZXing?new ZXing.MultiFormatReader():null;if(RD)RD.setHints(hints);const CV=document.createElement('canvas');
+function decCanvas(c){if(!RD)return null;try{const r=RD.decode(new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(new ZXing.HTMLCanvasElementLuminanceSource(c))));return r&&r.getText()}catch(e){return null}}
+async function ligarCam(){if(STREAM){pararCam();return}
+  try{STREAM=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},audio:false})}catch(e){aviso('bad','Não consegui abrir a câmera','Permita o uso da câmera para este site. Se estiver dentro de outro app, abra no Chrome.');return}
+  const v=$('#v');v.srcObject=STREAM;await v.play().catch(()=>{});TRACK=STREAM.getVideoTracks()[0];$('#camoff').hidden=true;$('#mira').hidden=false;$('#lin').hidden=false;$('#bcam').textContent='Desligar câmera';
+  try{const cap=TRACK.getCapabilities&&TRACK.getCapabilities();$('#btor').hidden=!(cap&&cap.torch)}catch(e){}
+  bip(true);
+  const tick=async()=>{if(!STREAM)return;let code=null;
+    try{if(BD){const r=await BD.detect(v);if(r&&r[0])code=r[0].rawValue}else if(v.videoWidth){const w=v.videoWidth,h=v.videoHeight,cw=Math.round(w*.8),ch=Math.round(h*.56);CV.width=cw;CV.height=ch;CV.getContext('2d').drawImage(v,(w-cw)/2,(h-ch)/2,cw,ch,0,0,cw,ch);code=decCanvas(CV)}}catch(e){}
+    if(code)ler(code);LOOP=setTimeout(tick,BD?120:220)};tick()}
+function pararCam(){clearTimeout(LOOP);if(STREAM)STREAM.getTracks().forEach(t=>t.stop());STREAM=null;TRACK=null;TOR=false;$('#camoff').hidden=false;$('#mira').hidden=true;$('#lin').hidden=true;$('#bcam').textContent='Ligar câmera';$('#btor').hidden=true}
+async function lanterna(){if(!TRACK)return;TOR=!TOR;try{await TRACK.applyConstraints({advanced:[{torch:TOR}]})}catch(e){TOR=false}}
+/* ---------- foto + leitura (também envia a foto para o Drive) ---------- */
+async function lerFoto(file){const img=await new Promise(r=>{const i=new Image();i.onload=()=>r(i);i.onerror=()=>r(null);i.src=URL.createObjectURL(file)});if(!img)return;
+  let code=null;try{if(BD){const r=await BD.detect(img);if(r&&r[0])code=r[0].rawValue}}catch(e){}
+  for(const max of [1400,900,2000]){if(code)break;for(const rot of [0,1]){const k=Math.min(1,max/Math.max(img.width,img.height)),w=Math.round(img.width*k),h=Math.round(img.height*k);CV.width=rot?h:w;CV.height=rot?w:h;const x=CV.getContext('2d');x.save();if(rot){x.translate(h,0);x.rotate(Math.PI/2)}x.drawImage(img,0,0,w,h);x.restore();code=decCanvas(CV);if(code)break}}
+  const k=Math.min(1,1280/Math.max(img.width,img.height));CV.width=Math.round(img.width*k);CV.height=Math.round(img.height*k);CV.getContext('2d').drawImage(img,0,0,CV.width,CV.height);const foto=CV.toDataURL('image/jpeg',.7);
+  if(!code){if(!ST.ctx){aviso('warn','Nenhum código na foto','Escolha o evento para enviar a foto mesmo assim, ou tente de novo mais perto.');return}code='FOTO';}
+  if(ST.modo==='consulta'){ler(code);return}ler(code,foto)}
+/* ---------- início ---------- */
+$('#bcam').onclick=ligarCam;$('#btor').onclick=lanterna;$('#bpq').onclick=()=>{$('#parear').hidden=true;$('#app').hidden=false;ligarCam()};
+$('#ff').onchange=e=>{const f=e.target.files[0];e.target.value='';if(f)lerFoto(f)};
+$('#bman').onclick=()=>{const c=window.prompt('Código, número de série ou etiqueta');if(c)ler(c)};
+$('#bctx').onclick=()=>baixarContexto(true);
+$('#bdes').onclick=()=>{if(window.confirm('Desparear este celular?')){CFG.url='';CFG.t='';sv('cfg',CFG);pararCam();desenhar()}};
+$('#bps').onclick=()=>{CFG.url=$('#pu').value.trim();CFG.t=$('#pt').value.trim();sv('cfg',CFG);baixarContexto(true);desenhar()};
+$('#op').onchange=e=>{ST.op=e.target.value.trim();sv('st',ST)};
+document.addEventListener('visibilitychange',()=>{if(document.hidden)pararCam()});
+/* pareamento pelo link do QR (…/exec?parear=CODIGO) */
+function parearCom(tok,url){if(!tok)return false;CFG.t=tok;if(url)CFG.url=url;sv('cfg',CFG);aviso('ok','Pareado com a Central','');baixarContexto(true);desenhar();return true}
+function iniciar(){indexar();desenhar();if(CFG.t)baixarContexto(false);else status('warn','Não pareado')}
+if(GS&&google.script.url){google.script.url.getLocation(l=>{const p=(l&&l.parameter)||{};if(!parearCom(p.parear,''))iniciar()})}
+else{const q=new URLSearchParams(location.search);const tok=q.get('parear');if(tok){parearCom(tok,q.get('u')||CFG.url);history.replaceState(null,'',location.pathname)}else iniciar()}
+setInterval(()=>{if(CFG.t&&!document.hidden)baixarContexto(false)},120000);
+</script>
+</body></html>
